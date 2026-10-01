@@ -268,17 +268,17 @@ Một sản phẩm học tập tiêu biểu từ cộng đồng học viên Data
         "Project Showcase": showcase,
     }
 
-def llm_generate(sanitized_text, project, result, base_url=None, api_key=None, model=None):
+def llm_generate(sanitized_text, project, result):
     """
     OpenAI-compatible endpoint (YEScale, OpenAI, Azure OpenAI proxy, etc.).
-    Parameters can be passed directly or read from st.secrets / environment / .env.
+    Configuration is read strictly from backend (st.secrets, .env, or env vars).
     """
-    base_url = (base_url or get_config("LLM_BASE_URL", "")).rstrip("/")
-    api_key = (api_key or get_config("LLM_API_KEY", "")).strip()
-    model = (model or get_config("LLM_MODEL", "gemini-2.5-flash")).strip()
+    base_url = get_config("LLM_BASE_URL", "https://api.yescale.io/v1").rstrip("/")
+    api_key = get_config("LLM_API_KEY", "").strip()
+    model = get_config("LLM_MODEL", "gemini-2.5-flash").strip()
 
-    if not base_url or not api_key or not model:
-        return None, "Demo Mode (Chưa cấu hình API Key)"
+    if not api_key:
+        return None, "Demo Mode"
 
     system = """
 You are Datapot's AI Learning Showcase content assistant.
@@ -351,78 +351,13 @@ with st.sidebar:
     st.write("🟢 ALLOW — learning experience")
     st.divider()
 
-    with st.expander("⚙️ Cấu hình LLM (YEScale / OpenAI)", expanded=not bool(get_config("LLM_API_KEY"))):
-        cfg_base_url = st.text_input(
-            "LLM Base URL",
-            value=get_config("LLM_BASE_URL", "https://api.yescale.io/v1"),
-            key="cfg_base_url",
-            help="Ví dụ: https://api.yescale.io/v1 hoặc https://api.openai.com/v1",
-        )
-        cfg_api_key = st.text_input(
-            "LLM API Key",
-            value=get_config("LLM_API_KEY", ""),
-            type="password",
-            key="cfg_api_key",
-            help="Dán YEScale Access Key (sk-...)",
-        )
-        cfg_model = st.text_input(
-            "LLM Model",
-            value=get_config("LLM_MODEL", "gemini-2.5-flash"),
-            key="cfg_model",
-            help="Ví dụ: gemini-2.5-flash, gpt-4o-mini,...",
-        )
+    backend_key = get_config("LLM_API_KEY", "")
+    backend_model = get_config("LLM_MODEL", "gemini-2.5-flash")
 
-        col_save, col_test = st.columns(2)
-        with col_save:
-            if st.button("💾 Lưu .env", use_container_width=True):
-                env_content = (
-                    f'LLM_BASE_URL="{cfg_base_url.strip()}"\n'
-                    f'LLM_API_KEY="{cfg_api_key.strip()}"\n'
-                    f'LLM_MODEL="{cfg_model.strip()}"\n'
-                )
-                Path(".env").write_text(env_content, encoding="utf-8")
-                os.environ["LLM_BASE_URL"] = cfg_base_url.strip()
-                os.environ["LLM_API_KEY"] = cfg_api_key.strip()
-                os.environ["LLM_MODEL"] = cfg_model.strip()
-                st.success("Đã lưu vào .env!")
-
-        with col_test:
-            if st.button("🔌 Kiểm tra", use_container_width=True):
-                if not cfg_api_key.strip():
-                    st.error("Chưa nhập API Key!")
-                else:
-                    with st.spinner("Đang test kết nối..."):
-                        try:
-                            t_res = requests.post(
-                                f"{cfg_base_url.rstrip('/')}/chat/completions",
-                                headers={
-                                    "Authorization": f"Bearer {cfg_api_key.strip()}",
-                                    "Content-Type": "application/json",
-                                },
-                                json={
-                                    "model": cfg_model.strip(),
-                                    "messages": [{"role": "user", "content": "ping"}],
-                                    "max_tokens": 5,
-                                },
-                                timeout=15,
-                            )
-                            if t_res.status_code == 200:
-                                st.success("✅ Kết nối thành công!")
-                            else:
-                                try:
-                                    err_text = t_res.json().get("error", {}).get("message", t_res.text)
-                                except Exception:
-                                    err_text = t_res.text
-                                st.error(f"Lỗi ({t_res.status_code}): {err_text}")
-                        except Exception as e:
-                            st.error(f"Lỗi kết nối: {e}")
-
-    current_key = get_config("LLM_API_KEY") or st.session_state.get("cfg_api_key", "")
-    current_model = get_config("LLM_MODEL", "gemini-2.5-flash")
-    if current_key:
-        st.success(f"🟢 LLM Mode: Sẵn sàng ({current_model})")
+    if backend_key:
+        st.success(f"🟢 **AI Engine: Hoạt động**\n\nModel: `{backend_model}`")
     else:
-        st.info("ℹ️ Chế độ: **Demo Mode** (Chưa nhập API Key)")
+        st.info("ℹ️ **Chế độ: Demo Mode**\n\n*(Cấu hình API Key tại backend)*")
 
 st.subheader("1. Learner input")
 
@@ -473,18 +408,7 @@ if run:
         st.session_state["generated"] = None
         st.session_state["mode"] = "BLOCKED"
     else:
-        active_base_url = st.session_state.get("cfg_base_url") or os.getenv("LLM_BASE_URL", "")
-        active_api_key = st.session_state.get("cfg_api_key") or os.getenv("LLM_API_KEY", "")
-        active_model = st.session_state.get("cfg_model") or os.getenv("LLM_MODEL", "gemini-2.5-flash")
-
-        generated, mode = llm_generate(
-            sanitized_text,
-            project,
-            result,
-            base_url=active_base_url,
-            api_key=active_api_key,
-            model=active_model,
-        )
+        generated, mode = llm_generate(sanitized_text, project, result)
         if generated is None:
             generated = demo_generate(experience, project, result)
         st.session_state["generated"] = generated
