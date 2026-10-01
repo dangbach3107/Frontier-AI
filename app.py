@@ -13,7 +13,15 @@ st.set_page_config(
     layout="wide",
 )
 
-# Tự động nạp cấu hình từ file .env nếu có
+# Helper lấy cấu hình hỗ trợ cả st.secrets (Streamlit Cloud), .env và os.environ
+def get_config(key, default=""):
+    try:
+        if key in st.secrets:
+            return str(st.secrets[key])
+    except Exception:
+        pass
+    return os.getenv(key, default)
+
 ENV_FILE = Path(".env")
 if ENV_FILE.exists():
     for line in ENV_FILE.read_text(encoding="utf-8").splitlines():
@@ -22,8 +30,9 @@ if ENV_FILE.exists():
             k, v = line.split("=", 1)
             k = k.strip()
             v = v.strip().strip("'\"")
-            if k:
+            if k and k not in os.environ:
                 os.environ[k] = v
+
 
 
 # =========================================================
@@ -262,11 +271,11 @@ Một sản phẩm học tập tiêu biểu từ cộng đồng học viên Data
 def llm_generate(sanitized_text, project, result, base_url=None, api_key=None, model=None):
     """
     OpenAI-compatible endpoint (YEScale, OpenAI, Azure OpenAI proxy, etc.).
-    Parameters can be passed directly or read from environment / .env.
+    Parameters can be passed directly or read from st.secrets / environment / .env.
     """
-    base_url = (base_url or os.getenv("LLM_BASE_URL", "")).rstrip("/")
-    api_key = (api_key or os.getenv("LLM_API_KEY", "")).strip()
-    model = (model or os.getenv("LLM_MODEL", "")).strip()
+    base_url = (base_url or get_config("LLM_BASE_URL", "")).rstrip("/")
+    api_key = (api_key or get_config("LLM_API_KEY", "")).strip()
+    model = (model or get_config("LLM_MODEL", "gemini-2.5-flash")).strip()
 
     if not base_url or not api_key or not model:
         return None, "Demo Mode (Chưa cấu hình API Key)"
@@ -342,23 +351,23 @@ with st.sidebar:
     st.write("🟢 ALLOW — learning experience")
     st.divider()
 
-    with st.expander("⚙️ Cấu hình LLM (YEScale / OpenAI)", expanded=not bool(os.getenv("LLM_API_KEY"))):
+    with st.expander("⚙️ Cấu hình LLM (YEScale / OpenAI)", expanded=not bool(get_config("LLM_API_KEY"))):
         cfg_base_url = st.text_input(
             "LLM Base URL",
-            value=os.getenv("LLM_BASE_URL", "https://api.yescale.io/v1"),
+            value=get_config("LLM_BASE_URL", "https://api.yescale.io/v1"),
             key="cfg_base_url",
             help="Ví dụ: https://api.yescale.io/v1 hoặc https://api.openai.com/v1",
         )
         cfg_api_key = st.text_input(
             "LLM API Key",
-            value=os.getenv("LLM_API_KEY", ""),
+            value=get_config("LLM_API_KEY", ""),
             type="password",
             key="cfg_api_key",
             help="Dán YEScale Access Key (sk-...)",
         )
         cfg_model = st.text_input(
             "LLM Model",
-            value=os.getenv("LLM_MODEL", "gemini-2.5-flash"),
+            value=get_config("LLM_MODEL", "gemini-2.5-flash"),
             key="cfg_model",
             help="Ví dụ: gemini-2.5-flash, gpt-4o-mini,...",
         )
@@ -408,8 +417,10 @@ with st.sidebar:
                         except Exception as e:
                             st.error(f"Lỗi kết nối: {e}")
 
-    if os.getenv("LLM_API_KEY") or st.session_state.get("cfg_api_key"):
-        st.success(f"🟢 LLM Mode: Sẵn sàng ({os.getenv('LLM_MODEL', 'gemini-2.5-flash')})")
+    current_key = get_config("LLM_API_KEY") or st.session_state.get("cfg_api_key", "")
+    current_model = get_config("LLM_MODEL", "gemini-2.5-flash")
+    if current_key:
+        st.success(f"🟢 LLM Mode: Sẵn sàng ({current_model})")
     else:
         st.info("ℹ️ Chế độ: **Demo Mode** (Chưa nhập API Key)")
 
