@@ -353,11 +353,32 @@ with st.sidebar:
 
     backend_key = get_config("LLM_API_KEY", "")
     backend_model = get_config("LLM_MODEL", "gemini-2.5-flash")
+    backend_url = get_config("LLM_BASE_URL", "https://api.yescale.io/v1")
+
+    @st.cache_data(ttl=300, show_spinner=False)
+    def test_connection(key, url, model):
+        try:
+            r = requests.post(
+                f"{url.rstrip('/')}/chat/completions",
+                headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+                json={"model": model, "messages": [{"role": "user", "content": "ping"}], "max_tokens": 5},
+                timeout=10,
+            )
+            if r.status_code == 200:
+                return True, "Kết nối 200 OK"
+            return False, f"Mã lỗi {r.status_code}"
+        except Exception as e:
+            return False, str(e)
 
     if backend_key:
-        st.success(f"🟢 **AI Engine: Hoạt động**\n\nModel: `{backend_model}`")
+        ok, msg = test_connection(backend_key, backend_url, backend_model)
+        if ok:
+            st.success(f"🟢 **AI Engine: Đã kết nối**\n\n• Model: `{backend_model}`\n\n• Health check: `{msg}`")
+        else:
+            st.warning(f"⚠️ **API Key chưa khả dụng**\n\n{msg}")
     else:
-        st.info("ℹ️ **Chế độ: Demo Mode**\n\n*(Cấu hình API Key tại backend)*")
+        st.info("ℹ️ **Chế độ: Demo Mode**\n\n*(Chưa tìm thấy API Key trong Secrets/Environment)*")
+
 
 st.subheader("1. Learner input")
 
