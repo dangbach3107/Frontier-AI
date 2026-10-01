@@ -13,25 +13,34 @@ st.set_page_config(
     layout="wide",
 )
 
-# Helper lấy cấu hình hỗ trợ cả st.secrets (Streamlit Cloud), .env và os.environ
+# Helper lấy cấu hình hỗ trợ trực tiếp st.secrets (Streamlit Cloud), .env (Local) và os.environ
 def get_config(key, default=""):
+    # 1. Thử lấy từ st.secrets (dành cho Streamlit Community Cloud)
     try:
-        if key in st.secrets:
-            return str(st.secrets[key])
+        if key in st.secrets and str(st.secrets[key]).strip():
+            return str(st.secrets[key]).strip()
     except Exception:
         pass
-    return os.getenv(key, default)
 
-ENV_FILE = Path(".env")
-if ENV_FILE.exists():
-    for line in ENV_FILE.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if line and not line.startswith("#") and "=" in line:
-            k, v = line.split("=", 1)
-            k = k.strip()
-            v = v.strip().strip("'\"")
-            if k and k not in os.environ:
-                os.environ[k] = v
+    # 2. Thử lấy trực tiếp từ file .env (dành cho máy Local)
+    env_file = Path(".env")
+    if env_file.exists():
+        for line in env_file.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if line and not line.startswith("#") and "=" in line:
+                k, v = line.split("=", 1)
+                if k.strip() == key:
+                    clean_v = v.strip().strip("'\"")
+                    if clean_v:
+                        return clean_v
+
+    # 3. Thử lấy từ biến môi trường hệ thống
+    val = os.getenv(key, "")
+    if val:
+        return val
+
+    return default
+
 
 
 
