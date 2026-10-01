@@ -13,9 +13,9 @@ st.set_page_config(
     layout="wide",
 )
 
-# Helper lấy cấu hình hỗ trợ trực tiếp st.secrets (Streamlit Cloud), .env (Local) và os.environ
+# Helper lấy cấu hình: Ưu tiên st.secrets / .env, nếu chưa có thì dùng key mặc định để demo chạy ngay lập tức
 def get_config(key, default=""):
-    # 1. Thử lấy từ st.secrets (dành cho Streamlit Community Cloud)
+    # 1. Thử lấy từ st.secrets (dành cho Streamlit Community Cloud nếu có cấu hình)
     try:
         if key in st.secrets and str(st.secrets[key]).strip():
             return str(st.secrets[key]).strip()
@@ -39,7 +39,14 @@ def get_config(key, default=""):
     if val:
         return val
 
-    return default
+    # 4. Giá trị mặc định có sẵn giúp Demo chạy tự động 100% không cần cấu hình thêm
+    defaults = {
+        "LLM_BASE_URL": "https://api.yescale.io/v1",
+        "LLM_API_KEY": "sk-dYHSZWzUGZ3gA0A4htJsGl9ot2LB8aFgLeVa7LaLoqqrBB8o",
+        "LLM_MODEL": "gemini-2.5-flash",
+    }
+    return defaults.get(key, default)
+
 
 
 
